@@ -24,14 +24,9 @@ def modify_df(df):
 # print(modified_data)R
 # df = getData.fetch_data()
 #df, file = getData.save_to_file()
-df_new = pd.DataFrame(pd.read_csv('~/programming/Python/CryptoPrediction/cryptoData/currentData/BCHUSD_2019-04-08_19:08:00.csv',
-                     index_col=['dtime']))
-df_new_2 = pd.DataFrame(pd.read_csv('~/programming/Python/CryptoPrediction/cryptoData/currentData/BCHUSD_2019-04-08_19:20:00.csv',
-                     index_col=['dtime']))
-full_df = pd.DataFrame(pd.concat([df_new_2, df_new], sort=False).drop_duplicates(subset=['time']))
 #full_df = full_df.merge()
 #print(full_df.tail(n=5))
-print(full_df)
+#print(full_df)
 #full_df_2 = pd.concat([df_new_2, full_df], sort=False).drop_duplicates(subset=['time'])
 #print(full_df_2)
 
@@ -48,5 +43,8 @@ print(full_df)
 # print(df.keys())
 # print(df.tail(n=10))
 # print(df.keys())
+df = getData.updated_full()
+print(df.head(n=5))
+print(df.tail(n=5))
 
 
