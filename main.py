@@ -1,16 +1,17 @@
 import os
-import pandas as pd
+#import pandas as pd
 import numpy as np
 import random
 from collections import deque
 from cryptoData import getData
 from sklearn import preprocessing
 from datetime import datetime
+from pathlib import Path, PureWindowsPath
 
-DIR_PATH = os.path.dirname(os.path.abspath(__file__))
-DIR_DATA = "~/programming/Python/CryptoPrediction/"
-DIR_CURRENT = "./cryptoData/currentData/"
-DIR_ARCHIVE = "./cryptoData/archive/"
+#DIR_PATH = os.path.dirname(os.path.abspath(__file__))
+#DIR_DATA = "~/programming/Python/CryptoPrediction/"
+DIR_CURRENT = Path(PureWindowsPath("cryptoData\\currentData\\"))
+DIR_ARCHIVE = Path(PureWindowsPath("cryptoData\\archive\\"))
 
 SEQ_LEN = 60
 
@@ -68,7 +69,9 @@ def preprocess_df(df):
 
     return np.array(X), y
 
+#---------------------------
+
 
 main_df = getData.updated_full()
-
-df = getData.updated_full()
+print(main_df.tail(5))
+#df = getData.updated_full()
