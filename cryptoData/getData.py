@@ -19,15 +19,7 @@ def fetch_data():
     return ohlc, last
 
 
-# def update_full_list(full_df):
-#     if os._exists(os.path.join(DIR_CURRENT, FULL_FILE)):
-#         full_df =
-
 def save_to_file(df, time):
-    # Fetch the data from Kraken
-    # ohlc, time = fetch_data()
-    # Converts fetched data to DataFrame, else it will be as Tuple
-    # df = pd.DataFrame(ohlc, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
     if time != 0:
         # Converts from UNIX time to formatted
         time = datetime.fromtimestamp(time).strftime('%Y-%m-%d_%H:%M:%S')
@@ -42,7 +34,6 @@ def save_to_file(df, time):
 
 def get_file_list():
     names = []
-
     for root, dirs, files in os.walk(DIR_CURRENT):
         for filename in files:
             names.append(filename)
@@ -56,9 +47,9 @@ def updated_full():
 
     if os.path.isfile(FULL_FILE):
         df_full = save_to_file(df_new, 0)
-        print('Doing the IF NOT')
+        # print('Doing the IF NOT')
     else:
-        print('Doing the IF')
+        # print('Doing the IF')
         save_to_file(df_new, time)
         df_full = pd.read_csv(os.path.join(DIR_CURRENT, FULL_FILE), index_col='dtime')
         df_full = pd.concat([df_new, df_full], sort=False).drop_duplicates(subset=['time'], inplace=False)
@@ -70,7 +61,8 @@ def updated_full():
                 move_archive(f)
             else:
                 pass
-
+    df_full.set_index("time", inplace=True)
+    print(df_full.keys())
     return df_full
 
 
