@@ -1,77 +1,105 @@
-import os
-#import pandas as pd
-import numpy as np
-import random
-from collections import deque
-from cryptoData import getData
-from sklearn import preprocessing
-from datetime import datetime
-from pathlib import Path, PureWindowsPath
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, LSTM, CuDNNLSTM, BatchNormalization, Flatten
+from tensorflow.keras.callbacks import TensorBoard
+from tensorflow.keras.callbacks import ModelCheckpoint
 
-#DIR_PATH = os.path.dirname(os.path.abspath(__file__))
-#DIR_DATA = "~/programming/Python/CryptoPrediction/"
+import time
+from pathlib import Path, PureWindowsPath
+from cryptoData import getData, getDataYearly
+from calculations import calculate
+
+# DIR_PATH = os.path.dirname(os.path.abspath(__file__))
+# DIR_DATA = "~/programming/Python/CryptoPrediction/"
 DIR_CURRENT = Path(PureWindowsPath("cryptoData\\currentData\\"))
 DIR_ARCHIVE = Path(PureWindowsPath("cryptoData\\archive\\"))
 
-SEQ_LEN = 60
+# SEQ_LEN = 60
+FUTURE_PERIOD_PREDICT = 3
+EPOCHS = 10
+BATCH_SIZE = 64
+NAME = f"Output_{int(time.time())}"
+start_time, end_time = '2018-03-01', '2019-03-01'
+
+# ---------------------------
+main_df = getDataYearly.get_bitcoin_data(start_time, end_time)
+
+main_df.fillna(method='ffill', inplace=True)
+main_df.dropna(inplace=True)
+
+main_df['future'] = main_df['Close'].shift(-FUTURE_PERIOD_PREDICT)
+main_df['target'] = list(map(calculate.classify, main_df['Close'], main_df['future']))
+
+main_df.dropna(inplace=True)
+# print(main_df)
+
+times = sorted(main_df.index.values)
+last_5pct = sorted(main_df.index.values)[-int(0.05 * len(times))]
+
+# making the validation data. Last 5% from main_df. And now the main_df has 95% to not duplicate the date.
+validation_main_df = main_df[(main_df.index >= last_5pct)]
+main_df = main_df[(main_df.index < last_5pct)]
+
+print(validation_main_df)
+print(main_df)
+
+train_x, train_y = calculate.preprocess_df(main_df)
+validation_x, validation_y = calculate.preprocess_df(validation_main_df)
+print(validation_x, validation_y)
+
+print(f'train data: {len(train_x)} validation: {len(validation_x)}')
+print(f'Dont buys: {train_y.count(0)}, buys: {train_y.count(1)}')
+print(f'Validation dont buys: {validation_y.count(0)}, buys: {validation_y.count(1)}')
 
 
-def modify_df(df):
-    # new_df = df.drop(columns="time" "open" "high")
-    new_df = df[['close', 'volume']]
-    return new_df
+model = Sequential()
+model.add(CuDNNLSTM(128, input_shape=train_x.shape[1:], return_sequences=True))
+model.add(Dropout(0.2))
+model.add(BatchNormalization())
 
+model.add(CuDNNLSTM(128, input_shape=train_x.shape[1:], return_sequences=True))
+model.add(Dropout(0.1))
+model.add(BatchNormalization())
 
-def preprocess_df(df):
-    for col in df.columns:
-        df[col] = df[col].pct_change()
-        df.dropna(inplace=True)
-        df[col] = preprocessing.scale(df[col].values)
+model.add(CuDNNLSTM(128, input_shape=train_x.shape[1:]))
+model.add(Dropout(0.2))
+model.add(BatchNormalization())
+#model.add(Flatten(input_shape=train_x.shape[1:]))
 
-    df.dropna(inplace=True)
+model.add(Dense(32, activation='relu'))
+model.add(Dropout(0.2))
 
-    sequential_data = []
-    prev_days = deque(maxlen=SEQ_LEN)
+#model.add(Flatten())
+model.add(Dense(2, activation='softmax'))
 
-    for i in df.values:
-        prev_days.append([n for n in i[:-1]])
-        if len(prev_days) == SEQ_LEN:
-            sequential_data.append([np.array(prev_days), i[-1]])
+#print(model.summary())
 
-    random.shuffle(sequential_data)
+opt = tf.keras.optimizers.Adam(lr=0.001, decay=1e-6)
 
-    buys = []
-    sells = []
+# Compile model
+model.compile(
+    loss='sparse_categorical_crossentropy',
+    optimizer=opt,
+    metrics=['accuracy']
+)
 
-    for seq, target in sequential_data:
-        if target == 0:
-            sells.append([seq, target])
-        elif target == 1:
-            buys.append([seq, target])
+tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
 
-    random.shuffle(buys)
-    random.shuffle(sells)
+filepath = "RNN_Final-{epoch:02d}-{val_acc:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
+checkpoint = ModelCheckpoint("models/{}.model".format(filepath, monitor='val_acc', verbose=1, save_best_only=True,
+                                                      mode='max'))  # saves only the best ones
 
-    lower = min(len(buys), len(sells))
+# Train model
+history = model.fit(
+    train_x, train_y,
+    batch_size=BATCH_SIZE,
+    epochs=EPOCHS,
+    validation_data=(validation_x, validation_y),
+    callbacks=[tensorboard, checkpoint])
 
-    buys = buys[:lower]
-    sells = sells[:lower]
-
-    sequential_data = buys + sells
-    random.shuffle(sequential_data)
-
-    X = []
-    y = []
-
-    for seq, target in sequential_data:
-        X.append(seq)
-        y.append(target)
-
-    return np.array(X), y
-
-#---------------------------
-
-
-main_df = getData.updated_full()
-print(main_df.tail(5))
-#df = getData.updated_full()
+# Score model
+score = model.evaluate(validation_x, validation_y, verbose=0)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])
+# Save model
+#model.save("models/{}".format(NAME))
